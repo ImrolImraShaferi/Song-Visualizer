@@ -18,7 +18,7 @@ public class RmsEnvelopeTests
 
         var samples = CreateSineWave(amplitude, frequency, sampleRate, channels, durationSeconds);
 
-        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 1024);
+        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 1024, hopSize: 1024);
 
         var expectedRms = amplitude / Math.Sqrt(2);
         Assert.NotEmpty(envelope.Values);
@@ -32,7 +32,7 @@ public class RmsEnvelopeTests
         const int channels = 1;
         var samples = new float[sampleRate];
 
-        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 512);
+        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 512, hopSize: 512);
 
         Assert.NotEmpty(envelope.Values);
         Assert.All(envelope.Values, value => Assert.InRange(value, 0, 1e-6));
@@ -49,7 +49,7 @@ public class RmsEnvelopeTests
             0, 0, 0, 0   // RMS 0
         };
 
-        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 4);
+        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 4, hopSize: 4);
 
         Assert.Equal(envelope.Values.First(), envelope.GetValueAtTime(-1));
         Assert.Equal(envelope.Values.Last(), envelope.GetValueAtTime(10));
@@ -58,6 +58,46 @@ public class RmsEnvelopeTests
         var interpolated = envelope.GetValueAtTime(midTime);
 
         Assert.InRange(interpolated, 0.45, 0.55);
+    }
+
+    [Fact]
+    public void GetValueAtSample_UsesSamplePrecision()
+    {
+        const int sampleRate = 10;
+        const int channels = 1;
+        var samples = Enumerable.Repeat(1f, 30).Concat(Enumerable.Repeat(0f, 30)).ToArray();
+
+        var envelope = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 10, hopSize: 5);
+
+        var earlySample = envelope.GetValueAtSample(0);
+        var midSample = envelope.GetValueAtSample(30);
+        var lateSample = envelope.GetValueAtSample(55);
+
+        Assert.InRange(earlySample, 0.95, 1.05);
+        Assert.InRange(midSample, 0.6, 0.9);
+        Assert.InRange(lateSample, -0.01, 0.05);
+    }
+
+    [Fact]
+    public void OverlappingWindows_ProducesSmoothTransition()
+    {
+        const int sampleRate = 16;
+        const int channels = 1;
+        var samples = Enumerable.Repeat(1f, 16).Concat(Enumerable.Repeat(0f, 16)).ToArray();
+
+        var nonOverlapping = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 8, hopSize: 8);
+        var overlapping = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 8, hopSize: 4);
+
+        Assert.Equal(2, nonOverlapping.Values.Count);
+        Assert.Equal(3, overlapping.Values.Count);
+
+        var middle = overlapping.Values[1];
+
+        Assert.InRange(nonOverlapping.Values.First(), 0.95, 1.05);
+        Assert.InRange(nonOverlapping.Values.Last(), -0.01, 0.05);
+
+        Assert.InRange(middle, 0.65, 0.75);
+        Assert.True(overlapping.Values[0] > middle && middle > overlapping.Values[2]);
     }
 
     private static float[] CreateSineWave(double amplitude, double frequency, int sampleRate, int channels, double durationSeconds)

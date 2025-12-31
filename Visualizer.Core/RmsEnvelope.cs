@@ -8,11 +8,12 @@ public sealed class RmsEnvelope
     private readonly double[] _times;
     private readonly double[] _values;
 
-    private RmsEnvelope(double[] times, double[] values, double durationSeconds)
+    private RmsEnvelope(double[] times, double[] values, double durationSeconds, int sampleRate)
     {
         _times = times;
         _values = values;
         DurationSeconds = durationSeconds;
+        SampleRate = sampleRate;
     }
 
     public IReadOnlyList<double> Times => _times;
@@ -21,7 +22,9 @@ public sealed class RmsEnvelope
 
     public double DurationSeconds { get; }
 
-    public static RmsEnvelope FromInterleaved(float[] samples, int sampleRate, int channels, int windowSize)
+    public int SampleRate { get; }
+
+    public static RmsEnvelope FromInterleaved(float[] samples, int sampleRate, int channels, int windowSize, int hopSize)
     {
         if (samples is null)
         {
@@ -43,6 +46,11 @@ public sealed class RmsEnvelope
             throw new ArgumentOutOfRangeException(nameof(windowSize), "Window size must be positive.");
         }
 
+        if (hopSize <= 0 || hopSize > windowSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(hopSize), "Hop size must be positive and no greater than the window size.");
+        }
+
         if (samples.Length % channels != 0)
         {
             throw new ArgumentException("Sample buffer length must be divisible by channel count.", nameof(samples));
@@ -51,13 +59,13 @@ public sealed class RmsEnvelope
         var totalFrames = samples.Length / channels;
         if (totalFrames == 0)
         {
-            return new RmsEnvelope(Array.Empty<double>(), Array.Empty<double>(), 0);
+            return new RmsEnvelope(Array.Empty<double>(), Array.Empty<double>(), 0, sampleRate);
         }
 
         var values = new List<double>();
         var times = new List<double>();
 
-        for (int frameStart = 0; frameStart < totalFrames; frameStart += windowSize)
+        for (int frameStart = 0; frameStart < totalFrames; frameStart += hopSize)
         {
             var framesInWindow = Math.Min(windowSize, totalFrames - frameStart);
 
@@ -83,7 +91,7 @@ public sealed class RmsEnvelope
         }
 
         var durationSeconds = totalFrames / (double)sampleRate;
-        return new RmsEnvelope(times.ToArray(), values.ToArray(), durationSeconds);
+        return new RmsEnvelope(times.ToArray(), values.ToArray(), durationSeconds, sampleRate);
     }
 
     public double GetValueAtTime(double t)
@@ -121,5 +129,16 @@ public sealed class RmsEnvelope
 
         var ratio = (t - _times[lower]) / timeSpan;
         return _values[lower] + ((_values[upper] - _values[lower]) * ratio);
+    }
+
+    public double GetValueAtSample(long sampleIndex)
+    {
+        if (sampleIndex <= 0)
+        {
+            return GetValueAtTime(0);
+        }
+
+        var time = sampleIndex / (double)SampleRate;
+        return GetValueAtTime(time);
     }
 }
