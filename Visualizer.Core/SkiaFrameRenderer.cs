@@ -9,6 +9,8 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
     private readonly SKPaint _backgroundPaint = new() { Color = SKColors.Black };
     private readonly SKPaint _barPaint = new() { Color = SKColors.LimeGreen, IsAntialias = true };
     private bool _disposed;
+    private SKBitmap _bitmap;
+    private SKCanvas _canvas;
 
     public SkiaFrameRenderer(int width, int height)
     {
@@ -17,6 +19,9 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
 
         Width = width;
         Height = height;
+
+        _bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        _canvas = new SKCanvas(_bitmap);
     }
 
     public int Width { get; }
@@ -28,29 +33,41 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
         ThrowIfDisposed();
         if (outputPath is null) throw new ArgumentNullException(nameof(outputPath));
 
+        DrawBar(rms);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
+        using var image = SKImage.FromBitmap(_bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
+        using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write);
+        data.SaveTo(stream);
+    }
+
+    private void DrawBar(double rms)
+    {
         var clamped = Math.Clamp(rms, 0, 1);
         clamped = Math.Pow(clamped, 0.5);
         var barHeightPx = (int)Math.Round(clamped * Height, MidpointRounding.AwayFromZero);
         barHeightPx = Math.Clamp(barHeightPx, 0, Height);
         var barWidth = Math.Max(Width / 20f, 8f); // thin vertical bar
 
-        using var bitmap = new SKBitmap(Width, Height);
-        using var canvas = new SKCanvas(bitmap);
+        //using var bitmap = new SKBitmap(Width, Height);
+        //using var canvas = new SKCanvas(bitmap);
 
-        canvas.DrawRect(SKRect.Create(0, 0, Width, Height), _backgroundPaint);
+        _canvas.DrawRect(SKRect.Create(0, 0, Width, Height), _backgroundPaint);
 
         var left = (Width - barWidth) / 2f;
         var right = left + barWidth;
         var top = Height - barHeightPx;
         var rect = new SKRect(left, top, right, Height); ;
 
-        canvas.DrawRect(rect, _barPaint);
+        _canvas.DrawRect(rect, _barPaint);
+    }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
-        using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
-        using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write);
-        data.SaveTo(stream);
+    public ReadOnlySpan<byte> RenderToRgba(double rms)
+    {
+        DrawBar(rms); // your existing drawing logic
+
+        return _bitmap.GetPixelSpan(); // RGBA, row-major
     }
 
     private void ThrowIfDisposed()
@@ -63,6 +80,8 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
         if (_disposed) return;
         _backgroundPaint.Dispose();
         _barPaint.Dispose();
+        _canvas.Dispose();
+        _bitmap.Dispose();
         _disposed = true;
     }
 }
