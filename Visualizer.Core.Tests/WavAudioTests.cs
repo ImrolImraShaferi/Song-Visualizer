@@ -91,11 +91,55 @@ public class WavAudioTests
         Assert.InRange(audio.Samples[2], -0.01f, 0.01f);
     }
 
-    private static byte[] CreatePcmWav16Bit(int sampleRate, int channels, IReadOnlyList<short> samples, bool includeJunkChunk = false, bool dataBeforeFmt = false, int fmtChunkSize = 16)
+    [Fact]
+    public void Load_SkipsOddSizedChunkPadding()
+    {
+        const int sampleRate = 16000;
+        const int channels = 1;
+        var samples = new short[] { 0, short.MaxValue, short.MinValue, 0 };
+
+        var wavBytes = CreatePcmWav16Bit(sampleRate, channels, samples, includeJunkChunk: true, junkChunkSize: 3);
+
+        using var stream = new MemoryStream(wavBytes);
+        var audio = WavAudio.Load(stream);
+
+        Assert.Equal(sampleRate, audio.SampleRate);
+        Assert.Equal(channels, audio.Channels);
+        Assert.Equal(samples.Length, audio.Samples.Length);
+    }
+
+    [Fact]
+    public void Load_ThrowsOnNonPcmAudioFormat()
+    {
+        const int sampleRate = 8000;
+        const int channels = 1;
+        var samples = new short[] { 0, short.MaxValue };
+
+        var wavBytes = CreatePcmWav16Bit(sampleRate, channels, samples, audioFormat: 3);
+
+        using var stream = new MemoryStream(wavBytes);
+
+        Assert.Throws<NotSupportedException>(() => WavAudio.Load(stream));
+    }
+
+    private static byte[] CreatePcmWav16Bit(
+        int sampleRate,
+        int channels,
+        IReadOnlyList<short> samples,
+        bool includeJunkChunk = false,
+        bool dataBeforeFmt = false,
+        int fmtChunkSize = 16,
+        ushort audioFormat = 1,
+        int junkChunkSize = 4)
     {
         if (fmtChunkSize < 16)
         {
             throw new ArgumentOutOfRangeException(nameof(fmtChunkSize), "fmt chunk size must be at least 16 bytes.");
+        }
+
+        if (includeJunkChunk && junkChunkSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(junkChunkSize), "JUNK chunk size must be positive.");
         }
 
         const int bytesPerSample = 2;
@@ -106,12 +150,12 @@ public class WavAudioTests
 
         if (includeJunkChunk)
         {
-            chunks.Add(("JUNK", 4, writer => writer.Write(new byte[4])));
+            chunks.Add(("JUNK", junkChunkSize, writer => writer.Write(new byte[junkChunkSize])));
         }
 
         var fmtChunk = ("fmt ", fmtChunkSize, (Action<BinaryWriter>)(writer =>
         {
-            writer.Write((ushort)1); // PCM
+            writer.Write(audioFormat);
             writer.Write((ushort)channels);
             writer.Write(sampleRate);
             writer.Write(sampleRate * channels * bytesPerSample);
@@ -143,7 +187,9 @@ public class WavAudioTests
             chunks.Add(dataChunk);
         }
 
-        var riffSize = 4 + chunks.Sum(chunk => 8 + chunk.Size);
+        static int Padding(int size) => (size & 1) == 1 ? 1 : 0;
+
+        var riffSize = 4 + chunks.Sum(chunk => 8 + chunk.Size + Padding(chunk.Size));
 
         using var memoryStream = new MemoryStream();
         using var writer = new BinaryWriter(memoryStream, Encoding.ASCII, leaveOpen: true);
@@ -157,6 +203,11 @@ public class WavAudioTests
             writer.Write(Encoding.ASCII.GetBytes(id));
             writer.Write(size);
             writeContent(writer);
+
+            if ((size & 1) == 1)
+            {
+                writer.Write((byte)0);
+            }
         }
 
         writer.Flush();
