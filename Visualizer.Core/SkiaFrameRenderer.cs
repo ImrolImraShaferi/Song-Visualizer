@@ -29,6 +29,7 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
         if (outputPath is null) throw new ArgumentNullException(nameof(outputPath));
 
         var clamped = Math.Clamp(rms, 0, 1);
+        clamped = Math.Pow(clamped, 0.5);
         var barHeight = (float)(clamped * Height);
         var barWidth = Math.Max(Width / 20f, 8f); // thin vertical bar
 
