@@ -1,0 +1,15 @@
+# .NET build artifacts
+bin/
+obj/
+
+# Visual Studio
+.vs/
+
+# Visualizer outputs
+frames/
+*.mp4
+*.wav
+
+# OS junk
+.DS_Store
+Thumbs.db
