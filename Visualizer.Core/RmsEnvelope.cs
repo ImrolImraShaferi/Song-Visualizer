@@ -65,7 +65,7 @@ public sealed class RmsEnvelope
         var values = new List<double>();
         var times = new List<double>();
 
-        for (int frameStart = 0; frameStart < totalFrames; frameStart += hopSize)
+        for (int frameStart = 0; frameStart + windowSize <= totalFrames; frameStart += hopSize)
         {
             var framesInWindow = Math.Min(windowSize, totalFrames - frameStart);
 

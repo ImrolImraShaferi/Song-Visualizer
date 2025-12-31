@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using Visualizer.Core;
 using Xunit;
@@ -88,17 +88,24 @@ public class RmsEnvelopeTests
         var nonOverlapping = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 8, hopSize: 8);
         var overlapping = RmsEnvelope.FromInterleaved(samples, sampleRate, channels, windowSize: 8, hopSize: 4);
 
-        Assert.Equal(2, nonOverlapping.Values.Count);
-        Assert.Equal(3, overlapping.Values.Count);
+        Assert.Equal(4, nonOverlapping.Values.Count); // starts: 0,8,16,24
+        Assert.Equal(7, overlapping.Values.Count);    // starts: 0,4,8,12,16,20,24
 
-        var middle = overlapping.Values[1];
+        // Non-overlap should be two high then two low
+        Assert.InRange(nonOverlapping.Values[0], 0.95, 1.05);
+        Assert.InRange(nonOverlapping.Values[1], 0.95, 1.05);
+        Assert.InRange(nonOverlapping.Values[2], -0.01, 0.05);
+        Assert.InRange(nonOverlapping.Values[3], -0.01, 0.05);
 
-        Assert.InRange(nonOverlapping.Values.First(), 0.95, 1.05);
-        Assert.InRange(nonOverlapping.Values.Last(), -0.01, 0.05);
+        // Overlap: the mixed window is the one starting at 12 (samples 12..19 => 4 ones + 4 zeros)
+        // RMS = sqrt((4*1^2)/8) = sqrt(0.5) ≈ 0.7071
+        var mixed = overlapping.Values[3];
+        Assert.InRange(mixed, 0.69, 0.73);
 
-        Assert.InRange(middle, 0.65, 0.75);
-        Assert.True(overlapping.Values[0] > middle && middle > overlapping.Values[2]);
+        Assert.True(overlapping.Values[2] > mixed); // window start 8 is all ones
+        Assert.True(mixed > overlapping.Values[4]); // window start 16 is all zeros
     }
+
 
     private static float[] CreateSineWave(double amplitude, double frequency, int sampleRate, int channels, double durationSeconds)
     {
