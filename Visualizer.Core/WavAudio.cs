@@ -39,7 +39,7 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
             throw new InvalidDataException("Invalid RIFF header.");
         }
 
-        _ = reader.ReadInt32(); // file size (unused)
+        _ = reader.ReadUInt32(); // file size (unused)
 
         var wave = ReadChunkId(reader, "WAVE header");
         if (!string.Equals(wave, "WAVE", StringComparison.Ordinal))
@@ -59,21 +59,23 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
 
         while (TryReadChunkHeader(reader, out var chunkId, out var chunkSize))
         {
+            var chunkSizeInt = EnsureChunkSizeWithinInt(chunkId, chunkSize);
+
             switch (chunkId)
             {
                 case "fmt ":
-                    ParseFmtChunk(reader, chunkSize, ref fmtFound, out channels, out sampleRate, out bitsPerSample, out blockAlign);
+                    ParseFmtChunk(reader, chunkSizeInt, ref fmtFound, out channels, out sampleRate, out bitsPerSample, out blockAlign);
                     break;
                 case "data":
-                    dataBytes = ReadBytesExact(reader, chunkSize, "data chunk");
+                    dataBytes = ReadBytesExact(reader, chunkSizeInt, "data chunk");
                     dataFound = true;
                     break;
                 default:
-                    SkipBytes(reader, chunkSize);
+                    SkipBytes(reader, chunkSizeInt);
                     break;
             }
 
-            if ((chunkSize & 1) == 1)
+            if ((chunkSizeInt & 1) == 1)
             {
                 SkipBytes(reader, 1); // padding byte
             }
@@ -100,16 +102,18 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
         }
 
         var totalFrames = dataBytes.Length / blockAlign;
-        var totalSamples = totalFrames * channels;
+        var totalSamples = checked(totalFrames * channels);
         var samples = new float[totalSamples];
 
+        var bytesPerSample = bitsPerSample / 8;
+        var bytesPerFrame = blockAlign;
         const float scale = 1f / 32768f;
 
         for (int frame = 0; frame < totalFrames; frame++)
         {
             for (int channel = 0; channel < channels; channel++)
             {
-                var offset = (frame * blockAlign) + (channel * 2);
+                var offset = (frame * bytesPerFrame) + (channel * bytesPerSample);
                 var sample = (short)(dataBytes[offset] | (dataBytes[offset + 1] << 8));
                 samples[(frame * channels) + channel] = sample * scale;
             }
@@ -173,7 +177,7 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
         fmtFound = true;
     }
 
-    private static bool TryReadChunkHeader(BinaryReader reader, out string chunkId, out int chunkSize)
+    private static bool TryReadChunkHeader(BinaryReader reader, out string chunkId, out uint chunkSize)
     {
         var idBytes = reader.ReadBytes(4);
         if (idBytes.Length == 0)
@@ -189,18 +193,19 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
         }
 
         chunkId = Encoding.ASCII.GetString(idBytes);
-        if (reader.BaseStream.Position + 4 > reader.BaseStream.Length)
-        {
-            throw new InvalidDataException($"Unexpected end of stream while reading size for chunk '{chunkId}'.");
-        }
-
-        chunkSize = reader.ReadInt32();
-        if (chunkSize < 0)
-        {
-            throw new InvalidDataException($"Invalid chunk size {chunkSize} for chunk '{chunkId}'.");
-        }
+        chunkSize = reader.ReadUInt32();
 
         return true;
+    }
+
+    private static int EnsureChunkSizeWithinInt(string chunkId, uint chunkSize)
+    {
+        if (chunkSize > int.MaxValue)
+        {
+            throw new InvalidDataException($"Chunk '{chunkId}' is too large ({chunkSize} bytes).");
+        }
+
+        return (int)chunkSize;
     }
 
     private static string ReadChunkId(BinaryReader reader, string context)
