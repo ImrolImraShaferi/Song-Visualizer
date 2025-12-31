@@ -30,7 +30,8 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
 
         var clamped = Math.Clamp(rms, 0, 1);
         clamped = Math.Pow(clamped, 0.5);
-        var barHeight = (float)(clamped * Height);
+        var barHeightPx = (int)Math.Round(clamped * Height, MidpointRounding.AwayFromZero);
+        barHeightPx = Math.Clamp(barHeightPx, 0, Height);
         var barWidth = Math.Max(Width / 20f, 8f); // thin vertical bar
 
         using var bitmap = new SKBitmap(Width, Height);
@@ -40,8 +41,8 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
 
         var left = (Width - barWidth) / 2f;
         var right = left + barWidth;
-        var top = Height - barHeight;
-        var rect = new SKRect(left, top, right, Height);
+        var top = Height - barHeightPx;
+        var rect = new SKRect(left, top, right, Height); ;
 
         canvas.DrawRect(rect, _barPaint);
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using Visualizer.Core;
@@ -26,12 +26,45 @@ var totalFrames = frames == 0 ? (long)Math.Ceiling(wav.DurationSeconds * fps) : 
 
 using var renderer = new SkiaFrameRenderer(width, height);
 
+double Smooth(double prev, double current, double alpha)
+    => prev + alpha * (current - prev);
+
+double smoothed = 0;
+const double alpha = 0.2; // try 0.15–0.30
+
+
+
 for (long frame = 0; frame < totalFrames; frame++)
 {
     var sampleIndex = timeline.GetSampleIndexForFrame(frame);
     var rms = envelope.GetValueAtSample(sampleIndex);
+
+    smoothed = Smooth(smoothed, rms, alpha);
+
     var outputPath = Path.Combine(outputDir, $"frame_{frame:D6}.png");
-    renderer.RenderFrame(rms, frame, outputPath);
+    renderer.RenderFrame(smoothed, frame, outputPath);
 }
 
 Console.WriteLine($"Rendered {totalFrames} frames to '{Path.GetFullPath(outputDir)}'.");
+
+var ffmpegPath = @"C:\ffmpeg\bin\ffmpeg.exe";
+var framesDir = outputDir;//Path.Combine(Environment.CurrentDirectory, "frames");
+var wavPath = inputPath;// @"C:\path\to\input.wav";
+var outputMp4 = 
+    Path.Combine(
+        Path.GetDirectoryName(inputPath)!,
+        Path.GetFileNameWithoutExtension(inputPath) + ".mp4"
+    );
+
+
+FfmpegEncoder.EncodeImageSequence(
+    ffmpegPath: ffmpegPath,
+    framesDirectory: framesDir,
+    framePattern: "frame_%06d.png",
+    startNumber: 0,
+    fps: (int)fps,
+    inputWavPath: wavPath,
+    outputMp4Path: outputMp4
+);
+
+Console.WriteLine($"Video rendered to '{Path.GetFullPath(outputMp4)}'.");
