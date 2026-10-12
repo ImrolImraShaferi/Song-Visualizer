@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Visualizer.Core;
 using Xunit;
@@ -106,6 +106,22 @@ public class RmsEnvelopeTests
         Assert.True(mixed > overlapping.Values[4]); // window start 16 is all zeros
     }
 
+
+    [Fact]
+    public void ShortAudio_UsesAvailableSamples()
+    {
+        var envelope = RmsEnvelope.FromInterleaved(new[] { 1f, 1f }, 1000, 1, 20, 10);
+        Assert.Single(envelope.Values);
+        Assert.Equal(1, envelope.GetValueAtSample(0));
+    }
+
+    [Fact]
+    public void TrailingAudio_IsNotDiscarded()
+    {
+        var envelope = RmsEnvelope.FromInterleaved(new[] { 0f, 0f, 0f, 0f, 1f }, 1000, 1, 4, 4);
+        Assert.Equal(2, envelope.Values.Count);
+        Assert.Equal(1, envelope.GetValueAtSample(5));
+    }
 
     private static float[] CreateSineWave(double amplitude, double frequency, int sampleRate, int channels, double durationSeconds)
     {

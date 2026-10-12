@@ -35,7 +35,7 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
 
         DrawBar(rms);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
         using var image = SKImage.FromBitmap(_bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, quality: 100);
         using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write);
@@ -65,7 +65,8 @@ public sealed class SkiaFrameRenderer : IFrameRenderer
 
     public ReadOnlySpan<byte> RenderToRgba(double rms)
     {
-        DrawBar(rms); // your existing drawing logic
+        ThrowIfDisposed();
+        DrawBar(rms);
 
         return _bitmap.GetPixelSpan(); // RGBA, row-major
     }

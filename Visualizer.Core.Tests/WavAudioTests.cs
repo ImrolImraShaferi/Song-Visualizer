@@ -122,6 +122,34 @@ public class WavAudioTests
         Assert.Throws<NotSupportedException>(() => WavAudio.Load(stream));
     }
 
+    [Fact]
+    public void Load_IgnoresBytesOutsideRiffContainer()
+    {
+        var bytes = CreatePcmWav16Bit(8000, 1, new short[] { 123 });
+        using var stream = new MemoryStream(bytes.Concat(new byte[] { 1, 2, 3 }).ToArray());
+        Assert.Single(WavAudio.Load(stream).Samples);
+    }
+
+    [Fact]
+    public void Load_RejectsChunkCrossingRiffBoundary()
+    {
+        var bytes = CreatePcmWav16Bit(8000, 1, new short[] { 123 });
+        BitConverter.GetBytes((uint)(bytes.Length - 9)).CopyTo(bytes, 4);
+        using var stream = new MemoryStream(bytes);
+        Assert.Throws<InvalidDataException>(() => WavAudio.Load(stream));
+    }
+
+    [Fact]
+    public void Load_RejectsMultipleDataChunks()
+    {
+        var bytes = CreatePcmWav16Bit(8000, 1, new short[] { 123 });
+        var extra = bytes[^10..];
+        var combined = bytes.Concat(extra).ToArray();
+        BitConverter.GetBytes((uint)(combined.Length - 8)).CopyTo(combined, 4);
+        using var stream = new MemoryStream(combined);
+        Assert.Throws<InvalidDataException>(() => WavAudio.Load(stream));
+    }
+
     private static byte[] CreatePcmWav16Bit(
         int sampleRate,
         int channels,

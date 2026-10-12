@@ -39,7 +39,9 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
             throw new InvalidDataException("Invalid RIFF header.");
         }
 
-        _ = reader.ReadUInt32(); // file size (unused)
+        var riffSize = reader.ReadUInt32();
+        if (riffSize < 4) throw new InvalidDataException("Invalid RIFF size.");
+        long remainingBytes = riffSize - 4;
 
         var wave = ReadChunkId(reader, "WAVE header");
         if (!string.Equals(wave, "WAVE", StringComparison.Ordinal))
@@ -57,8 +59,14 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
 
         byte[]? dataBytes = null;
 
-        while (TryReadChunkHeader(reader, out var chunkId, out var chunkSize))
+        while (remainingBytes > 0)
         {
+            if (remainingBytes < 8 || !TryReadChunkHeader(reader, out var chunkId, out var chunkSize))
+                throw new InvalidDataException("Truncated RIFF chunk header.");
+            var paddedSize = (long)chunkSize + (chunkSize & 1);
+            if (paddedSize > remainingBytes - 8)
+                throw new InvalidDataException("Chunk exceeds the RIFF boundary.");
+            remainingBytes -= 8 + paddedSize;
             var chunkSizeInt = EnsureChunkSizeWithinInt(chunkId, chunkSize);
 
             switch (chunkId)
@@ -67,6 +75,7 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
                     ParseFmtChunk(reader, chunkSizeInt, ref fmtFound, out channels, out sampleRate, out bitsPerSample, out blockAlign);
                     break;
                 case "data":
+                    if (dataFound) throw new InvalidDataException("Multiple data chunks are not supported.");
                     dataBytes = ReadBytesExact(reader, chunkSizeInt, "data chunk");
                     dataFound = true;
                     break;
@@ -168,7 +177,7 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
             throw new InvalidDataException($"Unexpected block align: {blockAlign}. Expected {expectedBlockAlign}.");
         }
 
-        var expectedByteRate = sampleRate * expectedBlockAlign;
+        var expectedByteRate = (ulong)sampleRate * expectedBlockAlign;
         if (byteRate != expectedByteRate)
         {
             throw new InvalidDataException($"Unexpected byte rate: {byteRate}. Expected {expectedByteRate}.");
@@ -226,10 +235,12 @@ public sealed record WavAudio(float[] Samples, int SampleRate, int Channels)
             return;
         }
 
-        var skipped = reader.ReadBytes(count);
-        if (skipped.Length < count)
+        while (count > 0)
         {
-            throw new EndOfStreamException("Unexpected end of stream while skipping bytes.");
+            var skipped = reader.ReadBytes(Math.Min(count, 8192));
+            if (skipped.Length == 0)
+                throw new EndOfStreamException("Unexpected end of stream while skipping bytes.");
+            count -= skipped.Length;
         }
     }
 

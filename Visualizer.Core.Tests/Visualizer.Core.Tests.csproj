@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\\Visualizer.Core\\Visualizer.Core.csproj" />
+    <ProjectReference Include="../Visualizer.Cli/Visualizer.Cli.csproj" />
   </ItemGroup>
 
 </Project>

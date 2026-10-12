@@ -1,4 +1,4 @@
-﻿// Visualizer.Core/FrameTimeline.cs
+// Visualizer.Core/FrameTimeline.cs
 using System;
 
 namespace Visualizer.Core;
@@ -8,7 +8,7 @@ public sealed class FrameTimeline
     public FrameTimeline(int sampleRate, double fps)
     {
         if (sampleRate <= 0) throw new ArgumentOutOfRangeException(nameof(sampleRate), "Sample rate must be positive.");
-        if (fps <= 0) throw new ArgumentOutOfRangeException(nameof(fps), "FPS must be positive.");
+        if (!double.IsFinite(fps) || fps <= 0 || sampleRate / fps >= long.MaxValue) throw new ArgumentOutOfRangeException(nameof(fps), "FPS must be finite, positive, and yield a representable sample interval.");
 
         SampleRate = sampleRate;
         Fps = fps;
@@ -36,8 +36,8 @@ public sealed class FrameTimeline
             // Round to nearest, ties away from zero.
             // sample = round(frameIndex * Numerator / Denominator)
             // => (frameIndex*Numerator + Denominator/2) / Denominator
-            var n = frameIndex * Numerator;
-            return (n + (Denominator / 2)) / Denominator;
+            var n = (Int128)frameIndex * Numerator;
+            return checked((long)((n + (Denominator / 2)) / Denominator));
         }
     }
 
@@ -58,12 +58,15 @@ public sealed class FrameTimeline
         {
             if (frac == 0) break;
             double inv = 1.0 / frac;
+            if (!double.IsFinite(inv) || inv > (maxDen - q0) / q1) break;
             long a = (long)Math.Floor(inv);
 
-            long p2 = checked(a * p1 + p0);
-            long q2 = checked(a * q1 + q0);
+            var nextNumerator = (Int128)a * p1 + p0;
+            var nextDenominator = (Int128)a * q1 + q0;
+            if (nextNumerator > long.MaxValue || nextDenominator > maxDen) break;
+            long p2 = (long)nextNumerator;
+            long q2 = (long)nextDenominator;
 
-            if (q2 > maxDen) break;
 
             p0 = p1; q0 = q1;
             p1 = p2; q1 = q2;

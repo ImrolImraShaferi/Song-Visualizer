@@ -1,4 +1,4 @@
-﻿// Visualizer.Core.Tests/FrameTimelineTests.cs
+// Visualizer.Core.Tests/FrameTimelineTests.cs
 using Visualizer.Core;
 using Xunit;
 
@@ -60,5 +60,23 @@ public class FrameTimelineTests
         // Rough sanity: after ~29.97 frames, ~1 second => ~48000 samples
         var samplesAt30Frames = t.GetSampleIndexForFrame(30);
         Assert.InRange(samplesAt30Frames, 45_000, 55_000);
+    }
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(double.Epsilon)]
+    public void Constructor_RejectsNonFiniteOrUnrepresentableFps(double fps)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FrameTimeline(48000, fps));
+    }
+
+    [Fact]
+    public void LargeFrameIndex_DoesNotOverflowIntermediateProduct()
+    {
+        var timeline = new FrameTimeline(48000, 29.97);
+        const long frame = 1_000_000_000_000;
+        var expected = (long)Math.Round(frame * (48000 / 29.97));
+        Assert.InRange(timeline.GetSampleIndexForFrame(frame), expected - 1, expected + 1);
     }
 }

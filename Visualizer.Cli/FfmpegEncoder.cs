@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Globalization;
 
 public sealed class FfmpegEncoder
 {
@@ -14,8 +15,10 @@ public sealed class FfmpegEncoder
         string inputWavPath,
         string outputMp4Path)
     {
-        if (!File.Exists(ffmpegPath))
-            throw new FileNotFoundException("FFmpeg executable not found.", ffmpegPath);
+        if (fps <= 0) throw new ArgumentOutOfRangeException(nameof(fps));
+        if (startNumber < 0) throw new ArgumentOutOfRangeException(nameof(startNumber));
+        if (string.IsNullOrWhiteSpace(ffmpegPath))
+            throw new FileNotFoundException("FFmpeg executable name is required.", ffmpegPath);
 
         if (!Directory.Exists(framesDirectory))
             throw new DirectoryNotFoundException(framesDirectory);
@@ -23,26 +26,20 @@ public sealed class FfmpegEncoder
         if (!File.Exists(inputWavPath))
             throw new FileNotFoundException("Input WAV not found.", inputWavPath);
 
-        var args = new StringBuilder();
-        args.Append($"-y ");
-        args.Append($"-framerate {fps} ");
-        args.Append($"-start_number {startNumber} ");
-        args.Append($"-i \"{Path.Combine(framesDirectory, framePattern)}\" ");
-        args.Append($"-i \"{inputWavPath}\" ");
-        args.Append($"-c:v libx264 ");
-        args.Append($"-pix_fmt yuv420p ");
-        args.Append($"-shortest ");
-        args.Append($"\"{outputMp4Path}\"");
-
         var psi = new ProcessStartInfo
         {
             FileName = ffmpegPath,
-            Arguments = args.ToString(),
             UseShellExecute = false,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
             CreateNoWindow = true
         };
+
+        foreach (var argument in new[] { "-y", "-framerate", fps.ToString(CultureInfo.InvariantCulture),
+            "-start_number", startNumber.ToString(CultureInfo.InvariantCulture), "-i",
+            Path.Combine(framesDirectory, framePattern), "-i", inputWavPath, "-c:v", "libx264",
+            "-pix_fmt", "yuv420p", "-shortest", outputMp4Path })
+            psi.ArgumentList.Add(argument);
 
         using var process = new Process { StartInfo = psi };
 
