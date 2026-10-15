@@ -47,6 +47,17 @@ with tempfile.TemporaryDirectory(prefix="visualizer-regression-") as directory:
         "--scene", "skyline", "--no-rain", "--title", "Phases", "--artist", "Imra")
     assert len(list((root / "skyline").glob("*.png"))) == 2
 
+    desert = root / "desert.mp4"
+    run("dotnet", str(exe), str(wav), "pipe", "30", "320", "180", "0", str(desert),
+        "--scene", "desert-highway", "--title", "Phases", "--artist", "Imra")
+    desert_info = json.loads(subprocess.check_output([
+        "ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", str(desert)
+    ]))
+    desert_video = next(s for s in desert_info["streams"] if s["codec_type"] == "video")
+    assert desert_video["nb_read_frames"] == "30", desert_video
+    assert any(s["codec_type"] == "audio" for s in desert_info["streams"])
+    run("ffmpeg", "-v", "error", "-i", str(desert), "-f", "null", "-")
+
     for values in [("NaN", "320", "180", "0"), ("10", "321", "180", "0"),
                    ("10", "320", "180", "-1")]:
         result = subprocess.run(["dotnet", str(exe), str(wav), "pipe", *values,

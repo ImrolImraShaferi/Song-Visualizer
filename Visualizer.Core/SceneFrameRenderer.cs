@@ -83,6 +83,11 @@ public sealed partial class SceneFrameRenderer : IDisposable
                 var barWidth = Math.Max(96, 8 * 1920f / _bitmap.Width);
                 Rect((1920 - barWidth) / 2, 1080 - height, barWidth, height, SKColors.LimeGreen);
             }
+            else if (_options.Scene == SceneKind.DesertHighway)
+            {
+                DesertHighway(seconds, bass, mid, high);
+                Gradient(new(0, 0, 1920, 240), new SKColor(19, 22, 42, 160), new SKColor(19, 22, 42, 0));
+            }
             else
             {
                 Sky(seconds, high);

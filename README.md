@@ -26,7 +26,14 @@ Visualizer.Cli input.wav [pipe|png] [fps] [width] [height] [frames] [output]
 | --- | --- |
 | `--scene night-drive` | Travel through a layered moonlit city with varied building sizes, street lamps, wet-road reflections, rain, and clouds. Occasional exit ramps and flyovers pass in perspective. |
 | `--scene skyline` | Stationary city skyline across animated water, with rain and cloud drift. |
+| `--scene desert-highway` | A dusk drive past cacti, scrub, rocks, mesas, utility poles, and occasional small towns with a gas station, diner, motel, and water tower. |
 | `--scene bars` | Original green bar on black; the default for existing commands. |
+
+For the desert highway, use the same command with `--scene desert-highway`. Settlements are spaced one minute of travel apart, with open country between them. Bass gently moves the mesa heights and cacti, mids control window lights and road reflectors, and highs animate dust, wind in the plants, and sky wisps. This scene is dry and does not use rain; `--no-rain` only changes the city scenes. The strength controls and top-center song text work for the desert too.
+
+```sh
+dotnet run --project Visualizer.Cli -- song.wav pipe 30 1920 1080 0 desert.mp4 --scene desert-highway --title "Phases" --artist "Imra"
+```
 
 Night-drive places three rows of buildings on each side of the road. Low broad blocks, mid-rise buildings, and narrow towers have independent heights, widths, setbacks, and roof details. Their profiles remain stable while driving past. Exits curve through cleared space between blocks, with guardrails and signs; flyovers have decks, railings, and piers outside the driving lanes. Each type occurs every 42 seconds, with exits alternating sides. Passing landmarks and city blocks share one perspective camera; bass still adds a gentle building-height response.
 

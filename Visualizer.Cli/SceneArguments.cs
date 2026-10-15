@@ -22,8 +22,9 @@ public static class SceneArguments
                 {
                     "night-drive" => SceneKind.NightDrive,
                     "skyline" => SceneKind.Skyline,
+                    "desert-highway" => SceneKind.DesertHighway,
                     "bars" => SceneKind.Bars,
-                    _ => throw new ArgumentException("Scene must be night-drive, skyline, or bars.")
+                    _ => throw new ArgumentException("Scene must be night-drive, skyline, desert-highway, or bars.")
                 } },
                 "--title" => scene with { Title = Value() },
                 "--artist" => scene with { Artist = Value() },

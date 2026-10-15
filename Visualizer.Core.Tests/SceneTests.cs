@@ -10,6 +10,7 @@ public class SceneTests
     [Theory]
     [InlineData(SceneKind.NightDrive)]
     [InlineData(SceneKind.Skyline)]
+    [InlineData(SceneKind.DesertHighway)]
     public void SceneryChangesWithTimeAndEachFrequencyBand(SceneKind kind)
     {
         using var renderer = new SceneFrameRenderer(320, 180, new(kind, "Phases", "Imra"));

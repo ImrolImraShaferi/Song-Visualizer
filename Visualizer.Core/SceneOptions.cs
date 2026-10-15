@@ -1,6 +1,6 @@
 namespace Visualizer.Core;
 
-public enum SceneKind { Bars, NightDrive, Skyline }
+public enum SceneKind { Bars, NightDrive, Skyline, DesertHighway }
 
 public sealed record SceneOptions(SceneKind Scene = SceneKind.NightDrive, string Title = "", string Artist = "",
     bool Rain = true, double BassStrength = 1, double HighStrength = 1)

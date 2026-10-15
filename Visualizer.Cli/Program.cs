@@ -13,7 +13,7 @@ if (args.Length < 1)
     Console.WriteLine("Usage: Visualizer.Cli <input.wav> [mode] [fps] [width] [height] [frames] [output]");
     Console.WriteLine("  mode: pipe|png (default: pipe)");
     Console.WriteLine("  output: for png -> output directory (default: frames); for pipe -> output mp4 path (default: <input>.mp4)");
-    Console.WriteLine("  --scene bars|night-drive|skyline --title <song> --artist <artist>");
+    Console.WriteLine("  --scene bars|night-drive|skyline|desert-highway --title <song> --artist <artist>");
     Console.WriteLine("  --no-rain --bass-strength <0..3> --high-strength <0..3>");
     return;
 }
