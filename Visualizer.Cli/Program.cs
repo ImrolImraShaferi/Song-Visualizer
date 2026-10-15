@@ -4,11 +4,17 @@ using System.Globalization;
 using System.IO;
 using Visualizer.Core;
 
+var parsed = SceneArguments.Parse(args);
+args = parsed.Positional;
+var scene = parsed.Scene;
+
 if (args.Length < 1)
 {
     Console.WriteLine("Usage: Visualizer.Cli <input.wav> [mode] [fps] [width] [height] [frames] [output]");
     Console.WriteLine("  mode: pipe|png (default: pipe)");
     Console.WriteLine("  output: for png -> output directory (default: frames); for pipe -> output mp4 path (default: <input>.mp4)");
+    Console.WriteLine("  --scene bars|night-drive|skyline --title <song> --artist <artist>");
+    Console.WriteLine("  --no-rain --bass-strength <0..3> --high-strength <0..3>");
     return;
 }
 
@@ -34,12 +40,15 @@ if (mode == "pipe" && (width % 2 != 0 || height % 2 != 0))
 var wav = WavAudio.Load(inputPath);
 var windowSize = Math.Max(1, wav.SampleRate / 50); // ~20ms
 var hopSize = Math.Max(1, windowSize / 2);
-var envelope = RmsEnvelope.FromInterleaved(wav.Samples, wav.SampleRate, wav.Channels, windowSize, hopSize);
+var envelope = scene.Scene == SceneKind.Bars
+    ? RmsEnvelope.FromInterleaved(wav.Samples, wav.SampleRate, wav.Channels, windowSize, hopSize) : null;
+if (scene.Scene != SceneKind.Bars) Console.WriteLine("Analyzing bass, mid, and high frequency bands...");
+var spectrum = scene.Scene == SceneKind.Bars ? null : SpectralEnvelope.FromInterleaved(wav.Samples, wav.SampleRate, wav.Channels);
 
 var timeline = new FrameTimeline(wav.SampleRate, fps);
 var totalFrames = frames == 0 ? checked((long)Math.Ceiling(wav.DurationSeconds * fps)) : frames;
 
-using var renderer = new SkiaFrameRenderer(width, height);
+using var renderer = new SceneFrameRenderer(width, height, scene);
 
 double Smooth(double prev, double current, double alpha)
     => prev + alpha * (current - prev);
@@ -88,6 +97,12 @@ static (Process Process, Task<string> StandardError) StartFfmpegPipe(
 }
 
 double smoothed = 0;
+AudioFeatures Features(long frame)
+{
+    if (spectrum is not null) return spectrum.GetValueAtTime(frame / fps);
+    smoothed = Smooth(smoothed, envelope!.GetValueAtSample(timeline.GetSampleIndexForFrame(frame)), 0.2);
+    return new AudioFeatures(smoothed, 0, 0, 0);
+}
 
 if (mode == "pipe")
 {
@@ -107,10 +122,7 @@ if (mode == "pipe")
         using var stdin = ffmpeg.StandardInput.BaseStream;
         for (long frame = 0; frame < totalFrames; frame++)
         {
-            var sampleIndex = timeline.GetSampleIndexForFrame(frame);
-            var rms = envelope.GetValueAtSample(sampleIndex);
-            smoothed = Smooth(smoothed, rms, 0.2);
-            stdin.Write(renderer.RenderToRgba(smoothed));
+            stdin.Write(renderer.RenderToRgba(Features(frame), frame / fps));
         }
 
         stdin.Close();
@@ -132,13 +144,8 @@ else // png
 {
     for (long frame = 0; frame < totalFrames; frame++)
     {
-        var sampleIndex = timeline.GetSampleIndexForFrame(frame);
-        var rms = envelope.GetValueAtSample(sampleIndex);
-
-        smoothed = Smooth(smoothed, rms, 0.2);
-
         var outputPath = Path.Combine(outputDir, $"frame_{frame:D6}.png");
-        renderer.RenderFrame(smoothed, frame, outputPath);
+        renderer.RenderFrame(Features(frame), frame / fps, outputPath);
     }
 
     Console.WriteLine($"Rendered {totalFrames} frames to '{Path.GetFullPath(outputDir)}'.");

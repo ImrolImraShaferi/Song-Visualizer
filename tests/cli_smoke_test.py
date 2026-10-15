@@ -21,7 +21,8 @@ with tempfile.TemporaryDirectory(prefix="visualizer-regression-") as directory:
     run("dotnet", str(exe), wav.name, "pipe", "10", "320", "180", cwd=root)
     assert wav.with_suffix(".mp4").is_file()
 
-    run("dotnet", str(exe), str(wav), "pipe", "29.97", "320", "180", "0", str(mp4))
+    run("dotnet", str(exe), str(wav), "pipe", "29.97", "320", "180", "0", str(mp4),
+        "--scene", "night-drive", "--title", "Phases", "--artist", "Imra")
     info = json.loads(subprocess.check_output([
         "ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", str(mp4)
     ]))
@@ -41,6 +42,10 @@ with tempfile.TemporaryDirectory(prefix="visualizer-regression-") as directory:
 
     run("dotnet", str(exe), str(wav), "png", "29.97", "320", "180", "0", str(root / "frames"))
     assert len(list((root / "frames").glob("*.png"))) == 30
+
+    run("dotnet", str(exe), str(wav), "png", "30", "320", "180", "2", str(root / "skyline"),
+        "--scene", "skyline", "--no-rain", "--title", "Phases", "--artist", "Imra")
+    assert len(list((root / "skyline").glob("*.png"))) == 2
 
     for values in [("NaN", "320", "180", "0"), ("10", "321", "180", "0"),
                    ("10", "320", "180", "-1")]:
